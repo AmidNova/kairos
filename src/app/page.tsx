@@ -17,8 +17,16 @@ export default function Home() {
   const handleSubmit = async () => {
     if (!url) return;
     setLoading(true);
-    const res = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
-    const data = await res.json();
+
+    const scrapeRes = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
+    const data = await scrapeRes.json();
+
+    await fetch("/api/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
     setProduct(data);
     setLoading(false);
   };
@@ -51,7 +59,7 @@ export default function Home() {
           {product.image && (
             <Image
               src={product.image}
-              alt={product.name}
+              alt={product.name ?? "Produit"}
               width={96}
               height={96}
               className="object-contain"
