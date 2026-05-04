@@ -6,10 +6,13 @@ export async function GET(request: NextRequest) {
   if (!url) {
     return NextResponse.json({ error: "URL manquante" }, { status: 400 });
   }
-
   const response = await fetch(
     `${process.env.PYTHON_SCRAPER_URL}/scrape?url=${encodeURIComponent(url)}`,
   );
+
+  if (!response.ok) {
+    return NextResponse.json({ error: "Scraping échoué" }, { status: 500 });
+  }
 
   const data = await response.json();
   return NextResponse.json(data);
