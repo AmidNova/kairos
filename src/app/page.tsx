@@ -23,16 +23,6 @@ export default function Home() {
     const scrapeRes = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
     const data = await scrapeRes.json();
 
-    await fetch("/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...data,
-        email,
-        target_price: parseFloat(targetPrice) || 0,
-      }),
-    });
-
     setProduct(data);
     setLoading(false);
   };

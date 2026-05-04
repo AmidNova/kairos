@@ -10,7 +10,7 @@ const createTables = async () => {
 
     CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
-      url TEXT NOT NULL,
+      url TEXT NOT NULL UNIQUE,
       name VARCHAR(255),
       image TEXT,
       current_price DECIMAL,
@@ -33,6 +33,15 @@ const createTables = async () => {
       target_price DECIMAL,
       created_at TIMESTAMP DEFAULT NOW()
     );
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'products_url_key'
+      ) THEN
+        ALTER TABLE products ADD CONSTRAINT products_url_key UNIQUE (url);
+      END IF;
+    END$$;
   `);
 
   console.log("Tables créées avec succès");

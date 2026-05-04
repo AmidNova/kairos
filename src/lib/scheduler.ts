@@ -13,7 +13,7 @@ export async function checkPrices() {
 
   for (const alert of alerts.rows) {
     const res = await fetch(
-      `http://localhost:8000/scrape?url=${encodeURIComponent(alert.url)}`,
+      `${process.env.PYTHON_SCRAPER_URL}/scrape?url=${encodeURIComponent(alert.url)}`,
     );
     const data = await res.json();
 

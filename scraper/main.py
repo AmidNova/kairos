@@ -1,9 +1,4 @@
-from fastapi import FastAPI
-from scraper import scrape_product
+from scraper import app  # noqa: F401
 
-app = FastAPI()
-
-@app.get("/scrape")
-async def scrape(url: str):
-    result = await scrape_product(url)
-    return result
+# Point d'entrée FastAPI : `uvicorn main:app --reload`
+# Toute la logique vit dans scraper.py (FastAPI + Playwright + parser Amazon).
