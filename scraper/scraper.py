@@ -31,20 +31,23 @@ BLOCKED_RESOURCES = {"image", "media", "font", "stylesheet"}
 # ---------------------------------------------------------------------------
 
 def parse_amazon(html: str, url: str) -> dict:
+    """
+    Parse une page produit Amazon.
+
+    Statuts possibles :
+      - "ok"            : extraction complète (nom + prix présents)
+      - "captcha"       : Amazon a affiché un challenge
+      - "missing_data"  : la page a chargé mais le parser DOM n'a pas trouvé
+                          les infos clés → Next bascule sur le fallback Gemini
+    """
     soup = BeautifulSoup(html, "html.parser")
 
-    # Detect CAPTCHA / bot wall
     if soup.find("form", {"action": "/errors/validateCaptcha"}):
-        raise Exception("CAPTCHA détecté — Amazon a bloqué la requête")
+        return {"url": url, "name": None, "price": None, "in_stock": None, "image": None, "status": "captcha"}
 
-    if not soup.find("span", {"id": "productTitle"}):
-        raise Exception("Page produit introuvable — possible redirection ou blocage")
-
-    # Name
     name_el = soup.find("span", {"id": "productTitle"})
     name = name_el.get_text(strip=True) if name_el else None
 
-    # Price — plusieurs sélecteurs Amazon selon les pages
     price = None
     price_selectors = [
         ("span", {"id": "priceblock_ourprice"}),
@@ -63,7 +66,6 @@ def parse_amazon(html: str, url: str) -> dict:
                 price = float(match.group())
                 break
 
-    # Stock
     in_stock = True
     availability_el = soup.find("div", {"id": "availability"})
     if availability_el:
@@ -72,14 +74,11 @@ def parse_amazon(html: str, url: str) -> dict:
         if any(kw in availability_text for kw in out_of_stock_keywords):
             in_stock = False
 
-    # Image
     image = None
     img_el = soup.find("img", {"id": "landingImage"})
     if img_el:
-        # Préfère data-old-hires pour la haute résolution
         image = img_el.get("data-old-hires") or img_el.get("src")
 
-    # Fallback image via script JSON (Amazon stocke les images dans un objet JS)
     if not image:
         scripts = soup.find_all("script", {"type": "text/javascript"})
         for script in scripts:
@@ -89,12 +88,15 @@ def parse_amazon(html: str, url: str) -> dict:
                     image = match.group(1)
                     break
 
+    status = "ok" if (name and price is not None) else "missing_data"
+
     return {
         "url": url,
         "name": name,
         "price": price,
         "in_stock": in_stock,
         "image": image,
+        "status": status,
     }
 
 # ---------------------------------------------------------------------------
@@ -163,13 +165,19 @@ async def scrape_amazon(url: str, retries: int = 3) -> dict:
                 await browser.close()
 
                 result = parse_amazon(html, url)
-                logger.info(f"Succès : {result['name']} — {result['price']}€")
+
+                if result["status"] == "ok":
+                    logger.info(f"Parser DOM OK : {result['name']} — {result['price']}€")
+                else:
+                    logger.warning(f"Parser DOM incomplet (status={result['status']}) — HTML renvoyé pour fallback IA")
+                    result["html"] = html  # n'envoie le HTML brut que si fallback nécessaire
+
                 return result
 
         except Exception as e:
             logger.error(f"Tentative {attempt} échouée : {e}")
             if attempt < retries:
-                wait = random.uniform(2.0, 5.0) * attempt  # backoff
+                wait = random.uniform(2.0, 5.0) * attempt
                 logger.info(f"Attente {wait:.1f}s avant retry...")
                 await asyncio.sleep(wait)
             else:
